@@ -1,0 +1,8 @@
+{
+  "max_query_history": 50,
+  "default_page_size": 25,
+  "autocommit_default": true,
+  "theme_preset": "emerald-dark",
+  "statement_timeout_ms": 30000,
+  "catalog_scope": "public"
+}

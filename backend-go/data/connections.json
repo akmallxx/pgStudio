@@ -1,0 +1,38 @@
+[
+  {
+    "id": "conn_localhost_default",
+    "name": "Localhost PostgreSQL",
+    "host": "localhost",
+    "port": 5432,
+    "user": "gast",
+    "password": "password",
+    "database": "pos",
+    "ssl_mode": "disable",
+    "badge": "LOCAL",
+    "created_at": "2026-10-05T19:24:41+07:00"
+  },
+  {
+    "id": "conn_staging_analytics",
+    "name": "Staging Analytics Warehouse",
+    "host": "localhost",
+    "port": 5432,
+    "user": "gast",
+    "password": "password",
+    "database": "pos",
+    "ssl_mode": "disable",
+    "badge": "STAGING",
+    "created_at": "2026-10-05T20:00:00+07:00"
+  },
+  {
+    "id": "conn_replica_read_only",
+    "name": "Replica Read-Only Node",
+    "host": "localhost",
+    "port": 5432,
+    "user": "gast",
+    "password": "password",
+    "database": "pos",
+    "ssl_mode": "disable",
+    "badge": "REPLICA / RO",
+    "created_at": "2026-10-05T20:00:00+07:00"
+  }
+]
