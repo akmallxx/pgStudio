@@ -69,7 +69,7 @@ export function TerminalView({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSnippetsSidebar, setShowSnippetsSidebar] = useState(true);
   const [snippetSearch, setSnippetSearch] = useState('');
-  const [filterScopeOnly, setFilterScopeOnly] = useState(false);
+  const [filterScopeOnly, setFilterScopeOnly] = useState(true);
 
   // Edit snippet dialog state
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
@@ -370,14 +370,6 @@ export function TerminalView({
             )}
 
             <button
-              onClick={copyTerminalOutput}
-              className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
-              title="Salin Seluruh Output Buffer"
-            >
-              <Copy className="w-3.5 h-3.5" />
-            </button>
-
-            <button
               onClick={() => {
                 const sendFn = activeSession ? sendCmdRef.current[activeSession.id] : null;
                 if (sendFn) {
@@ -404,15 +396,18 @@ export function TerminalView({
             <button
               onClick={() => setShowSnippetsSidebar(!showSnippetsSidebar)}
               className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-colors border ml-1 cursor-pointer',
+                'flex items-center gap-1.5 text-md transition-colors ml-1 cursor-pointer',
                 showSnippetsSidebar
-                  ? 'border-primary/40 bg-primary/15 text-primary font-bold'
-                  : 'border-surface-container-high text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+                  ? 'text-primary font-bold'
+                  : 'text-on-surface-variant hover:text-on-surface'
               )}
               title="Buka / Tutup Drawer Snippets"
             >
-              <Code2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Snippets</span>
+              {showSnippetsSidebar ? (
+                <PanelRightClose className="w-3.5 h-3.5" />
+              ) : (
+                <PanelRightOpen className="w-3.5 h-3.5" />
+              )}
             </button>
           </div>
         )}
@@ -446,9 +441,6 @@ export function TerminalView({
               <div className="flex items-center gap-2">
                 <Code2 className="w-4 h-4 text-primary" />
                 <span className="text-xs font-bold text-on-surface">Snippets Library</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-surface-container text-on-surface-variant">
-                  {filteredSnippets.length}
-                </span>
               </div>
               <div className="flex items-center gap-1">
                 {onAddSnippet && (
@@ -485,17 +477,6 @@ export function TerminalView({
 
               <div className="flex items-center gap-1 text-[11px]">
                 <button
-                  onClick={() => setFilterScopeOnly(false)}
-                  className={cn(
-                    'px-2.5 py-0.5 rounded-md transition-colors font-medium cursor-pointer',
-                    !filterScopeOnly
-                      ? 'bg-surface-container-high text-on-surface font-semibold shadow-xs'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  )}
-                >
-                  Semua ({snippets.length})
-                </button>
-                <button
                   onClick={() => setFilterScopeOnly(true)}
                   className={cn(
                     'px-2.5 py-0.5 rounded-md transition-colors font-medium cursor-pointer',
@@ -505,6 +486,17 @@ export function TerminalView({
                   )}
                 >
                   Server Ini
+                </button>
+                <button
+                  onClick={() => setFilterScopeOnly(false)}
+                  className={cn(
+                    'px-2.5 py-0.5 rounded-md transition-colors font-medium cursor-pointer',
+                    !filterScopeOnly
+                      ? 'bg-surface-container-high text-on-surface font-semibold shadow-xs'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  )}
+                >
+                  Semua ({snippets.length})
                 </button>
               </div>
             </div>
@@ -543,22 +535,20 @@ export function TerminalView({
                       </div>
 
                       {/* Action buttons (Paste & Run) */}
-                      <div className="mt-2.5 flex items-center justify-end gap-1.5">
+                      <div className="mt-1.5 flex items-center justify-end gap-1.5">
                         <button
                           onClick={(e) => handlePasteSnippet(snip, e)}
-                          className="px-2 py-1 rounded-lg bg-surface-container hover:bg-surface-container-highest text-on-surface border border-surface-container-high text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                          className="px-1 py-0.5 rounded-sm bg-surface-container-highest hover:brightness-110 text-on-surface border border-surface-container-high text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                           title="Paste ke prompt terminal"
                         >
-                          <ClipboardPaste className="w-3 h-3 text-secondary" />
                           <span>Paste</span>
                         </button>
 
                         <button
                           onClick={(e) => handleRunSnippet(snip, e)}
-                          className="px-2.5 py-1 rounded-lg bg-primary hover:brightness-110 text-on-primary text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                          className="px-1.5 py-0.5 rounded-sm bg-primary hover:brightness-110 text-on-primary text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                           title="Eksekusi langsung di terminal"
                         >
-                          <Play className="w-3 h-3 fill-current" />
                           <span>Run</span>
                         </button>
                       </div>

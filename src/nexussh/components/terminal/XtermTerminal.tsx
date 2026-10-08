@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { api } from '../../../services/api';
-import { RotateCcw, Wifi, WifiOff } from 'lucide-react';
+import { RotateCcw, WifiOff } from 'lucide-react';
 
 interface XtermTerminalProps {
   hostId: string;
@@ -232,35 +232,32 @@ export const XtermTerminal: React.FC<XtermTerminalProps> = ({
 
   return (
     <div className={`relative w-full h-full flex flex-col bg-[#0d1117] ${isActive ? 'block' : 'hidden'}`}>
-      {/* Mini status badge overlay */}
-      <div className="absolute top-2 right-4 z-20 flex items-center gap-2 bg-[#161b22]/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-[11px] font-mono pointer-events-auto">
-        {connectionStatus === 'connected' ? (
-          <span className="flex items-center gap-1.5 text-emerald-400">
-            <Wifi className="w-3 h-3" />
-            <span className="hidden sm:inline">SSH Connected</span>
-          </span>
-        ) : connectionStatus === 'connecting' ? (
-          <span className="flex items-center gap-1.5 text-amber-400 animate-pulse">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            <span className="hidden sm:inline">Connecting...</span>
-          </span>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 text-rose-400">
-              <WifiOff className="w-3 h-3" />
-              <span className="hidden sm:inline">Disconnected</span>
+      {/* Mini status badge overlay (hanya tampil jika tidak connected) */}
+      {connectionStatus !== 'connected' && (
+        <div className="absolute top-2 right-4 z-20 flex items-center gap-2 bg-[#161b22]/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-[11px] font-mono pointer-events-auto">
+          {connectionStatus === 'connecting' ? (
+            <span className="flex items-center gap-1.5 text-amber-400 animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span className="hidden sm:inline">Connecting...</span>
             </span>
-            <button
-              onClick={handleReconnect}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-[10px] cursor-pointer"
-              title="Sambungkan Ulang"
-            >
-              <RotateCcw className="w-2.5 h-2.5" />
-              <span>Reconnect</span>
-            </button>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 text-rose-400">
+                <WifiOff className="w-3 h-3" />
+                <span className="hidden sm:inline">Disconnected</span>
+              </span>
+              <button
+                onClick={handleReconnect}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-[10px] cursor-pointer"
+                title="Sambungkan Ulang"
+              >
+                <RotateCcw className="w-2.5 h-2.5" />
+                <span>Reconnect</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Terminal Viewport */}
       <div
