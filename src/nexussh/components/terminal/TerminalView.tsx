@@ -565,24 +565,6 @@ export function TerminalView({
         )}
       </div>
 
-      {/* Terminal Status Footer */}
-      {activeSession && (
-        <div className="flex items-center justify-between px-4 py-1.5 border-t border-surface-container-high/80 bg-surface-container-low text-[11px] text-on-surface-variant select-none shrink-0 font-mono">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-              <span className="text-on-surface font-semibold">{activeSession.hostname}:{activeSession.port}</span>
-            </span>
-            <span className="text-surface-container-highest">|</span>
-            <span className="truncate max-w-[200px]">Path: {activeSession.currentDirectory}</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span>Buffer: {activeSession.lines.length} lines</span>
-          </div>
-        </div>
-      )}
-
       {/* Edit Snippet Modal */}
       <Dialog
         open={editingSnippet !== null}

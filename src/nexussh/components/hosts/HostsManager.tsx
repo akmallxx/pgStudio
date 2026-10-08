@@ -332,15 +332,6 @@ export function HostsManager({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span
-                              className={cn(
-                                'w-2 h-2 rounded-full shrink-0',
-                                isOnline
-                                  ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]'
-                                  : 'bg-surface-container-highest'
-                              )}
-                              title={isOnline ? 'Online / Siap' : 'Offline'}
-                            />
                             <h3
                               className="text-xs sm:text-sm font-bold text-on-surface truncate group-hover:text-primary transition-colors"
                               title={displayName}
