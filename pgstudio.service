@@ -1,0 +1,20 @@
+[Unit]
+Description=pgStudio PostgreSQL Developer Studio Service
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=azahwa
+WorkingDirectory=/home/azahwa/.pgstudio
+ExecStart=/home/azahwa/.pgstudio/pgstudio-server
+Restart=always
+RestartSec=5
+
+EnvironmentFile=/home/azahwa/.pgstudio/.env
+Environment=GIN_MODE=release
+
+MemoryMax=64M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

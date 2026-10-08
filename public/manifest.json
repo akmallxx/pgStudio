@@ -1,0 +1,55 @@
+{
+  "name": "pgStudio - PostgreSQL & DevOps Suite",
+  "short_name": "pgStudio",
+  "description": "High-Performance PostgreSQL Developer Studio & NexusSH DevOps Fleet Suite",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0f172a",
+  "background_color": "#0b1326",
+  "categories": ["developer", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Web Terminal",
+      "short_name": "Terminal",
+      "description": "Buka NexusSH Web Terminal",
+      "url": "/terminal",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "SFTP Browser",
+      "short_name": "SFTP",
+      "description": "Buka Dual-Pane SFTP Explorer",
+      "url": "/sftp",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "SQL Scratchpad",
+      "short_name": "SQL Query",
+      "description": "Buka PostgreSQL Query Scratchpad",
+      "url": "/query",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}

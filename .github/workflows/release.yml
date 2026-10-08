@@ -1,0 +1,132 @@
+name: Release pgStudio
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag rilis (contoh: v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Multiplatform Binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: npm ci || npm install
+
+      - name: Build Frontend (Vite + PWA)
+        run: npm run build
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache-dependency-path: backend-go/go.sum
+
+      - name: Sync Frontend to Go Embed Directory
+        run: |
+          mkdir -p backend-go/dist
+          cp -r dist/* backend-go/dist/
+
+      - name: Determine Version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "VERSION=${TAG}" >> $GITHUB_OUTPUT
+          echo "Building version: ${TAG}"
+
+      - name: Compile Multiplatform Binaries
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          cd backend-go
+          
+          # Windows AMD64
+          echo "Compiling Windows AMD64..."
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ../dist-bin/windows-amd64/pgstudio.exe .
+          
+          # Linux AMD64
+          echo "Compiling Linux AMD64..."
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ../dist-bin/linux-amd64/pgstudio-server .
+          
+          # Linux ARM64
+          echo "Compiling Linux ARM64..."
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ../dist-bin/linux-arm64/pgstudio-server .
+
+      - name: Package Archives
+        run: |
+          VER="${{ steps.get_version.outputs.VERSION }}"
+          mkdir -p release-artifacts
+          
+          # 1. Package Windows AMD64
+          mkdir -p pkg-win
+          cp dist-bin/windows-amd64/pgstudio.exe pkg-win/
+          cp start.bat pkg-win/
+          cp start-hidden.vbs pkg-win/
+          cp .env.example pkg-win/
+          cp README.md pkg-win/
+          cd pkg-win
+          zip -r ../release-artifacts/pgstudio-${VER}-windows-amd64.zip .
+          cd ..
+          
+          # 2. Package Linux AMD64
+          mkdir -p pkg-linux-amd64
+          cp dist-bin/linux-amd64/pgstudio-server pkg-linux-amd64/
+          cp pgstudio.service pkg-linux-amd64/
+          cp build.sh pkg-linux-amd64/
+          cp .env.example pkg-linux-amd64/
+          cp README.md pkg-linux-amd64/
+          cd pkg-linux-amd64
+          tar -czvf ../release-artifacts/pgstudio-${VER}-linux-amd64.tar.gz .
+          cd ..
+          
+          # 3. Package Linux ARM64
+          mkdir -p pkg-linux-arm64
+          cp dist-bin/linux-arm64/pgstudio-server pkg-linux-arm64/
+          cp pgstudio.service pkg-linux-arm64/
+          cp .env.example pkg-linux-arm64/
+          cp README.md pkg-linux-arm64/
+          cd pkg-linux-arm64
+          tar -czvf ../release-artifacts/pgstudio-${VER}-linux-arm64.tar.gz .
+          cd ..
+          
+          # Checksums
+          cd release-artifacts
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          cd ..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: pgStudio ${{ steps.get_version.outputs.VERSION }}
+          files: |
+            release-artifacts/*.zip
+            release-artifacts/*.tar.gz
+            release-artifacts/SHA256SUMS.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false
