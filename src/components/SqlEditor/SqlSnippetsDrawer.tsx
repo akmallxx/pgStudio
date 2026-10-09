@@ -413,11 +413,6 @@ export const SqlSnippetsDrawer: React.FC<SqlSnippetsDrawerProps> = ({
           ))
         )}
       </div>
-
-      {/* 5. Footer Hint */}
-      <div className="p-2 border-t border-surface-container-high text-[10px] font-mono text-on-surface-variant text-center shrink-0">
-        Klik Paste untuk edit • Klik Run untuk langsung eksekusi
-      </div>
     </aside>
   );
 };
