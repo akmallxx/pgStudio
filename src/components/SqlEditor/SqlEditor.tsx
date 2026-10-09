@@ -16,6 +16,7 @@ import {
   Activity,
   AlignLeft,
   Bookmark,
+  Code2,
   Sparkles,
   Table,
   GitFork,
@@ -36,7 +37,8 @@ import {
 import { INITIAL_SQL_TABS, EMPTY_QUERY_RESULT } from '../../data/mockDatabase';
 import { QueryResult, SqlTab, ClusterConnection } from '../../types/database';
 import { api, QueryHistoryItem } from '../../services/api';
-import { SqlSnippetModal } from './SqlSnippetModal';
+import { SqlSnippetsDrawer } from './SqlSnippetsDrawer';
+
 
 
 interface SqlEditorProps {
@@ -80,7 +82,23 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const [queryError, setQueryError] = useState<string | null>(null);
   const [explainPlan, setExplainPlan] = useState<string[]>([]);
   const [hasSelectionToRun, setHasSelectionToRun] = useState<boolean>(false);
-  const [isSnippetModalOpen, setIsSnippetModalOpen] = useState(false);
+  const [showSnippetsDrawer, setShowSnippetsDrawer] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('pgstudio_sqleditor_show_snippets') === 'true';
+    } catch (_) {}
+    return false;
+  });
+
+  const toggleSnippetsDrawer = () => {
+    setShowSnippetsDrawer((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('pgstudio_sqleditor_show_snippets', String(next));
+      } catch (_) {}
+      return next;
+    });
+  };
+
 
 
   // Resizable Editor Panel Height (Saved in localStorage, like Sidebar Database Explorer)
@@ -287,15 +305,60 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     }
   };
 
-  const handleApplySnippet = (snippetSql: string) => {
+  const handlePasteSnippet = (snippetSql: string) => {
     setTabs((prev) =>
       prev.map((t) => (t.id === activeTabId ? { ...t, sql: snippetSql, isDirty: true } : t))
     );
     setTimeout(() => {
       textareaRef.current?.focus();
     }, 50);
-    onShowToast('Snippet dimuat ke editor', 'check_circle');
+    onShowToast('Query dimuat ke editor', 'content_paste');
   };
+
+  const handleRunSnippet = async (snippetSql: string) => {
+    setTabs((prev) =>
+      prev.map((t) => (t.id === activeTabId ? { ...t, sql: snippetSql, isDirty: true } : t))
+    );
+    setIsExecuting(true);
+    setQueryError(null);
+    const start = performance.now();
+    try {
+      const res = await api.executeQuery(snippetSql);
+      const elapsed = res.execution_time_ms || +(performance.now() - start).toFixed(1);
+      const resColumns = res.columns && res.columns.length > 0 
+        ? res.columns 
+        : [{ name: 'result', type: 'text' }];
+
+      let resRows = res.rows || [];
+      if (resRows.length === 0 && res.message) {
+        resRows = [{ result: res.message }];
+      }
+
+      setResultsData({
+        executionTimeMs: elapsed,
+        planningTimeMs: res.planning_time_ms || 1.1,
+        rowCount: res.row_count,
+        transferKb: res.transfer_kb || 2.4,
+        columns: resColumns,
+        rows: resRows,
+        message: res.message,
+      });
+
+      if (onUpdateExecutionTime) onUpdateExecutionTime(elapsed);
+      onShowToast(`Query berhasil dijalankan (${res.row_count} baris, ${elapsed}ms)`, 'check_circle');
+      setResultsSubTab('results');
+      fetchHistory();
+    } catch (err: any) {
+      const msg = err?.data?.error || err.message || 'Error saat menjalankan query';
+      setQueryError(msg);
+      setResultsSubTab('logs');
+      onShowToast(`Error: ${msg}`, 'error', true);
+      fetchHistory();
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
 
 
   const handleRunQueryRef = useRef(handleRunQuery);
@@ -385,7 +448,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   };
 
   return (
-    <div className="flex flex-col w-full">
+    <div className="flex w-full min-h-0 relative items-stretch">
+      {/* Main SQL Editor Workspace */}
+      <div className="flex-1 min-w-0 flex flex-col">
+
       {/* 1. Query Tabs & Top Bar */}
       <div className="flex items-center justify-between bg-surface-container-lowest px-1 pt-1 rounded-t-lg border-b border-surface-container-high/60">
         {/* Tabs List */}
@@ -509,15 +575,20 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             <span className="font-medium">Prettier</span>
           </button>
 
-          {/* SQL Snippets Library */}
+          {/* Toggle Snippets Drawer (Persis TerminalView) */}
           <button
-            onClick={() => setIsSnippetModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-0.5 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant hover:text-primary rounded text-xs transition-colors cursor-pointer border border-outline-variant/30"
-            title="Buka SQL Snippets Library & Template Dasar"
+            onClick={toggleSnippetsDrawer}
+            className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs transition-colors cursor-pointer border ${
+              showSnippetsDrawer
+                ? 'bg-primary text-on-primary border-primary font-semibold shadow-xs'
+                : 'bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface border-outline-variant/30'
+            }`}
+            title="Buka / Tutup Drawer Snippets (Query Dasar & Kustom)"
           >
-            <Bookmark className="w-3.5 h-3.5 text-secondary" />
-            <span className="font-medium">Snippets</span>
+            <Code2 className="w-3.5 h-3.5" />
+            <span>Snippets</span>
           </button>
+
 
 
           {/* Auto Rollback Pill Switch */}
@@ -1066,16 +1137,19 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           </div>
         </div>
       </div>
+      </div>
 
-      {/* SQL Snippets Library Modal */}
-      <SqlSnippetModal
-        isOpen={isSnippetModalOpen}
-        onClose={() => setIsSnippetModalOpen(false)}
+      {/* Snippets Right Drawer (Persis TerminalView) */}
+      <SqlSnippetsDrawer
+        isOpen={showSnippetsDrawer}
+        onClose={() => setShowSnippetsDrawer(false)}
         currentEditorSql={activeTab?.sql || ''}
-        onApplySnippet={handleApplySnippet}
+        onPasteSnippet={handlePasteSnippet}
+        onRunSnippet={handleRunSnippet}
         onShowToast={onShowToast}
       />
     </div>
   );
 };
+
 
