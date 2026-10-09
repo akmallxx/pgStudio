@@ -990,6 +990,9 @@ export default function App() {
               path="/sql"
               element={
                 <SqlEditor
+                  activeDatabase={activeDatabase}
+                  activeCluster={activeCluster}
+                  onChangeDatabase={handleChangeDatabase}
                   onShowToast={showToast}
                   onUpdateExecutionTime={(time) => setLastQueryTime(time)}
                 />

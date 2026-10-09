@@ -2654,6 +2654,95 @@ func handleCreateTable(c *gin.Context) {
 	})
 }
 
+// Helper to strip leading SQL comments (-- and /* */) and whitespace
+func stripSqlLeadingComments(sql string) string {
+	lines := strings.Split(sql, "\n")
+	var remaining []string
+	inBlock := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if inBlock {
+			if idx := strings.Index(trimmed, "*/"); idx != -1 {
+				inBlock = false
+				trimmed = strings.TrimSpace(trimmed[idx+2:])
+			} else {
+				continue
+			}
+		}
+
+		for strings.HasPrefix(trimmed, "/*") {
+			if idx := strings.Index(trimmed, "*/"); idx != -1 {
+				trimmed = strings.TrimSpace(trimmed[idx+2:])
+			} else {
+				inBlock = true
+				trimmed = ""
+				break
+			}
+		}
+
+		if strings.HasPrefix(trimmed, "--") {
+			continue
+		}
+
+		if trimmed != "" {
+			remaining = append(remaining, trimmed)
+		}
+	}
+
+	return strings.Join(remaining, " ")
+}
+
+// Translates common psql CLI commands (\dt, \l, \d) to standard PostgreSQL SQL
+func translatePsqlMetaCommand(cmd string) (string, bool, string) {
+	trimmed := strings.TrimSpace(cmd)
+	if !strings.HasPrefix(trimmed, "\\") {
+		return cmd, false, ""
+	}
+
+	parts := strings.Fields(trimmed)
+	mainCmd := parts[0]
+
+	switch mainCmd {
+	case "\\dt", "\\dt+":
+		return `SELECT schemaname, tablename, tableowner FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY schemaname, tablename;`, true, ""
+	case "\\l", "\\l+":
+		return `SELECT datname AS "Database", pg_catalog.pg_get_userbyid(datdba) AS "Owner", pg_catalog.pg_encoding_to_char(encoding) AS "Encoding" FROM pg_catalog.pg_database WHERE datistemplate = false ORDER BY 1;`, true, ""
+	case "\\d":
+		if len(parts) > 1 {
+			targetTable := strings.Trim(parts[1], "\"'")
+			return fmt.Sprintf(`SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = '%s' ORDER BY ordinal_position;`, targetTable), true, ""
+		}
+		return `SELECT table_schema, table_name, table_type FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema, table_name;`, true, ""
+	case "\\dn", "\\dn+":
+		return `SELECT nspname AS "Schema", pg_catalog.pg_get_userbyid(nspowner) AS "Owner" FROM pg_catalog.pg_namespace ORDER BY 1;`, true, ""
+	case "\\df", "\\df+":
+		return `SELECT routine_schema, routine_name, data_type FROM information_schema.routines WHERE routine_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY routine_schema, routine_name;`, true, ""
+	default:
+		return "", false, fmt.Sprintf("Perintah '%s' adalah psql CLI meta-command. Gunakan sintaks query SQL PostgreSQL standar atau navigasi lewat Database Explorer di panel sebelah kiri.", mainCmd)
+	}
+}
+
+// Check if a SQL query produces rows
+func isRowReturningQuery(sql string) bool {
+	s := stripSqlLeadingComments(sql)
+	upper := strings.ToUpper(s)
+	if strings.HasPrefix(upper, "SELECT") ||
+		strings.HasPrefix(upper, "WITH") ||
+		strings.HasPrefix(upper, "SHOW") ||
+		strings.HasPrefix(upper, "EXPLAIN") ||
+		strings.HasPrefix(upper, "TABLE ") ||
+		strings.HasPrefix(upper, "VALUES") ||
+		strings.HasPrefix(upper, "FETCH") {
+		return true
+	}
+	if (strings.HasPrefix(upper, "INSERT") || strings.HasPrefix(upper, "UPDATE") || strings.HasPrefix(upper, "DELETE")) &&
+		strings.Contains(upper, "RETURNING") {
+		return true
+	}
+	return false
+}
+
 func handleQueryExecute(c *gin.Context) {
 	atomic.AddUint64(&totalQueries, 1)
 	start := time.Now()
@@ -2691,16 +2780,25 @@ func handleQueryExecute(c *gin.Context) {
 		return
 	}
 
+	cleanSQL := strings.TrimSpace(req.SQL)
+	if cleanSQL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Query SQL tidak boleh kosong"})
+		return
+	}
+
+	// Handle psql CLI meta-commands gracefully
+	if translated, ok, errMsg := translatePsqlMetaCommand(cleanSQL); ok {
+		cleanSQL = translated
+	} else if errMsg != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 
-	cleanSQL := strings.TrimSpace(req.SQL)
-	isSelect := strings.HasPrefix(strings.ToUpper(cleanSQL), "SELECT") ||
-		strings.HasPrefix(strings.ToUpper(cleanSQL), "WITH") ||
-		strings.HasPrefix(strings.ToUpper(cleanSQL), "SHOW") ||
-		strings.HasPrefix(strings.ToUpper(cleanSQL), "EXPLAIN")
-
 	activeCfg, _, _ := connMgr.GetCurrentInfo()
+	isSelect := isRowReturningQuery(cleanSQL)
 
 	if isSelect {
 		rows, err := pool.Query(ctx, cleanSQL)
@@ -2819,6 +2917,18 @@ func handleQueryExecute(c *gin.Context) {
 			RowCount:        int(tag.RowsAffected()),
 			Status:          "SUCCESS",
 			Message:         fmt.Sprintf("Perintah berhasil dijalankan: %s", tag.String()),
+			Columns: []ColumnMeta{
+				{Name: "command", Type: "text"},
+				{Name: "rows_affected", Type: "int8"},
+				{Name: "status", Type: "text"},
+			},
+			Rows: []map[string]any{
+				{
+					"command":       tag.String(),
+					"rows_affected": tag.RowsAffected(),
+					"status":        "SUCCESS",
+				},
+			},
 		})
 	}
 }

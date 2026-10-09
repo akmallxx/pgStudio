@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Terminal,
@@ -28,19 +28,26 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
+  Database,
 } from 'lucide-react';
 import { INITIAL_SQL_TABS, EMPTY_QUERY_RESULT } from '../../data/mockDatabase';
-import { QueryResult, SqlTab } from '../../types/database';
+import { QueryResult, SqlTab, ClusterConnection } from '../../types/database';
 import { api, QueryHistoryItem } from '../../services/api';
 
 interface SqlEditorProps {
   onShowToast: (message: string, icon?: string, isError?: boolean) => void;
   onUpdateExecutionTime?: (ms: number) => void;
+  activeDatabase?: string;
+  activeCluster?: ClusterConnection;
+  onChangeDatabase?: (db: string) => void;
 }
 
 export const SqlEditor: React.FC<SqlEditorProps> = ({
   onShowToast,
   onUpdateExecutionTime,
+  activeDatabase,
+  activeCluster,
+  onChangeDatabase,
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -67,6 +74,65 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const [selectedCell, setSelectedCell] = useState('R1:C4');
   const [queryError, setQueryError] = useState<string | null>(null);
   const [explainPlan, setExplainPlan] = useState<string[]>([]);
+  const [hasSelectionToRun, setHasSelectionToRun] = useState<boolean>(false);
+
+  // Resizable Editor Panel Height (Saved in localStorage, like Sidebar Database Explorer)
+  const [editorHeight, setEditorHeight] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('pgstudio_sqleditor_height');
+      if (saved) return Math.max(100, Math.min(800, parseInt(saved, 10)));
+    } catch (_) {}
+    return 220;
+  });
+  const [isResizingEditor, setIsResizingEditor] = useState<boolean>(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Mouse drag handler for vertical resizer
+  const handleMouseDownResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingEditor(true);
+    const startY = e.clientY;
+    const startHeight = editorHeight;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientY - startY;
+      const minH = 100;
+      const maxH = Math.max(minH, window.innerHeight - 260);
+      const nextH = Math.max(minH, Math.min(startHeight + delta, maxH));
+      setEditorHeight(nextH);
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      setIsResizingEditor(false);
+
+      const delta = upEvent.clientY - startY;
+      const minH = 100;
+      const maxH = Math.max(minH, window.innerHeight - 260);
+      const finalH = Math.max(minH, Math.min(startHeight + delta, maxH));
+      try {
+        localStorage.setItem('pgstudio_sqleditor_height', finalH.toString());
+      } catch (_) {}
+    };
+
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleResetEditorHeight = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditorHeight(220);
+    try {
+      localStorage.setItem('pgstudio_sqleditor_height', '220');
+    } catch (_) {}
+    onShowToast('Tinggi editor di-reset ke 220px', 'restart_alt');
+  };
 
   // Real Query History from backend-go/data/query_history.json
   const [historyList, setHistoryList] = useState<QueryHistoryItem[]>([]);
@@ -93,22 +159,52 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
 
   const handleRunQuery = async () => {
+    const textarea = textareaRef.current;
+    let sqlToExecute = activeTab.sql;
+    let hasSelection = false;
+
+    if (textarea && textarea.selectionStart !== textarea.selectionEnd) {
+      const selected = activeTab.sql.substring(textarea.selectionStart, textarea.selectionEnd).trim();
+      if (selected) {
+        sqlToExecute = selected;
+        hasSelection = true;
+      }
+    }
+
+    if (!sqlToExecute.trim()) {
+      onShowToast('Query SQL tidak boleh kosong', 'warning', true);
+      return;
+    }
+
     setIsExecuting(true);
     setQueryError(null);
     const start = performance.now();
     try {
-      const res = await api.executeQuery(activeTab.sql);
+      const res = await api.executeQuery(sqlToExecute);
       const elapsed = res.execution_time_ms || +(performance.now() - start).toFixed(1);
+      
+      const resColumns = res.columns && res.columns.length > 0 
+        ? res.columns 
+        : [{ name: 'result', type: 'text' }];
+
+      let resRows = res.rows || [];
+      if (resRows.length === 0 && res.message) {
+        resRows = [{ result: res.message }];
+      }
+
       setResultsData({
         executionTimeMs: elapsed,
         planningTimeMs: res.planning_time_ms || 1.1,
         rowCount: res.row_count,
         transferKb: res.transfer_kb || 2.4,
-        columns: res.columns && res.columns.length > 0 ? res.columns : [{ name: 'result', type: 'text' }],
-        rows: res.rows || [],
+        columns: resColumns,
+        rows: resRows,
+        message: res.message,
       });
+
       if (onUpdateExecutionTime) onUpdateExecutionTime(elapsed);
-      onShowToast(`Query berhasil (${res.row_count} baris, ${elapsed}ms)`, 'check_circle');
+      const note = hasSelection ? ' (query terpilih)' : '';
+      onShowToast(`Query berhasil${note} (${res.row_count} baris, ${elapsed}ms)`, 'check_circle');
       setResultsSubTab('results');
       fetchHistory();
     } catch (err: any) {
@@ -248,12 +344,20 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-1.5 bg-surface-container px-2.5 py-1 border-b border-surface-container-high/60">
         {/* Execution Toolbar */}
         <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Target Active Database Pill */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container-lowest border border-outline-variant/30 text-xs shadow-xs">
+            <Database className="w-3.5 h-3.5 text-primary" />
+            <span className="text-[11px] text-on-surface-variant font-medium">DB:</span>
+            <span className="font-semibold text-[11px] text-primary">{activeDatabase || 'postgres'}</span>
+          </div>
+
           {/* Run Button Compound */}
           <div className="inline-flex rounded shadow-sm bg-primary-container">
             <button
               onClick={handleRunQuery}
               disabled={isExecuting}
               className="flex items-center gap-1 px-2.5 py-0.5 bg-primary text-on-primary hover:bg-primary-fixed transition-colors font-headline-sm text-xs rounded-l cursor-pointer"
+              title="Jalankan query (atau query yang diblok) • Shortcut: ⌘+Enter / Ctrl+Enter"
             >
               {isExecuting ? (
                 <RotateCw className="w-3 h-3 animate-spin" />
@@ -261,15 +365,16 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                 <Play className="w-3 h-3 fill-current" />
               )}
               <span className="font-semibold text-xs">
-                {isExecuting ? 'Executing...' : 'Run Query'}
+                {isExecuting ? 'Executing...' : hasSelectionToRun ? 'Run Selection' : 'Run Query'}
               </span>
               <kbd className="ml-1 px-1 py-0.2 bg-on-primary/20 text-on-primary rounded text-[9px] font-mono">
                 ⌘⏎
               </kbd>
             </button>
             <button
+              onClick={handleRunQuery}
               className="px-1 py-0.5 bg-primary text-on-primary hover:bg-primary-fixed rounded-r transition-colors border-l border-on-primary/20 cursor-pointer"
-              title="Execution Options"
+              title="Jalankan Query (⌘+Enter / Ctrl+Enter)"
             >
               <ChevronDown className="w-3 h-3" />
             </button>
@@ -361,18 +466,24 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         </div>
       </div>
 
-      {/* 3. Monaco-style Monospace Query Editor Container */}
-      <div className="bg-surface-container-lowest relative font-code-md text-code-md overflow-hidden shadow-inner flex min-h-[160px] max-h-[220px] border-b border-surface-container-high">
+      {/* 3. Monaco-style Monospace Query Editor Container with Resizable Height */}
+      <div 
+        style={{ height: `${editorHeight}px` }}
+        className={`bg-surface-container-lowest relative font-code-md text-code-md overflow-hidden shadow-inner flex border-b border-surface-container-high ${
+          isResizingEditor ? 'duration-0 select-none' : 'transition-all duration-150'
+        }`}
+      >
         {/* Line Numbers Column */}
-        <div className="w-10 py-1.5 bg-surface-container-lowest text-right pr-2 select-none text-on-surface-variant/40 flex flex-col font-code-sm text-[11px] leading-relaxed border-r border-surface-container-high/30">
-          {Array.from({ length: 15 }, (_, i) => (
+        <div className="w-10 py-1.5 bg-surface-container-lowest text-right pr-2 select-none text-on-surface-variant/40 flex flex-col font-code-sm text-[11px] leading-relaxed border-r border-surface-container-high/30 overflow-hidden">
+          {Array.from({ length: Math.max(15, Math.ceil(editorHeight / 20)) }, (_, i) => (
             <span key={i + 1}>{i + 1}</span>
           ))}
         </div>
 
         {/* Code Content */}
-        <div className="flex-1 py-1.5 pl-2.5 pr-3 overflow-x-auto leading-relaxed text-on-surface relative font-mono text-xs">
+        <div className="flex-1 py-1.5 pl-2.5 pr-3 overflow-auto leading-relaxed text-on-surface relative font-mono text-xs">
           <textarea
+            ref={textareaRef}
             value={activeTab.sql}
             onChange={(e) => {
               const val = e.target.value;
@@ -380,8 +491,20 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                 prev.map((t) => (t.id === activeTabId ? { ...t, sql: val, isDirty: true } : t))
               );
             }}
+            onSelect={() => {
+              const ta = textareaRef.current;
+              if (ta) {
+                setHasSelectionToRun(ta.selectionStart !== ta.selectionEnd);
+              }
+            }}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                e.preventDefault();
+                handleRunQuery();
+              }
+            }}
             spellCheck={false}
-            className="w-full h-full min-h-[140px] bg-transparent text-on-surface font-code-md text-xs leading-relaxed outline-none resize-none font-mono selection:bg-primary-container selection:text-on-primary-container"
+            className="w-full h-full bg-transparent text-on-surface font-code-md text-xs leading-relaxed outline-none resize-none font-mono selection:bg-primary-container selection:text-on-primary-container"
           />
         </div>
 
@@ -396,13 +519,30 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           <div className="w-4/5 h-1 bg-secondary/30 rounded mb-0.5 ml-2"></div>
           <div className="w-3/4 h-1 bg-secondary/30 rounded mb-0.5 ml-2"></div>
           <div className="w-1/2 h-1 bg-secondary/50 rounded mb-0.5"></div>
-          <div className="mt-4 p-1 bg-primary/20 rounded h-10 w-full"></div>
         </div>
       </div>
 
-      {/* Interactive Resizer Bar */}
-      <div className="h-1 bg-surface-container-high hover:bg-secondary cursor-row-resize flex items-center justify-center transition-colors group">
-        <div className="w-8 h-0.5 bg-outline rounded group-hover:bg-secondary"></div>
+      {/* Interactive Resizer Bar (Tarik untuk ubah tinggi seperti sidebar) */}
+      <div
+        onMouseDown={handleMouseDownResize}
+        onDoubleClick={handleResetEditorHeight}
+        className={`relative h-2 w-full cursor-row-resize z-20 select-none group transition-colors duration-150 flex items-center justify-center ${
+          isResizingEditor ? 'bg-primary/25' : 'bg-surface-container-high/60 hover:bg-primary/20'
+        }`}
+        title="Tarik untuk mengubah tinggi editor / hasil query (Klik 2x untuk reset ke 220px)"
+      >
+        <div
+          className={`h-0.5 w-14 rounded transition-colors duration-150 ${
+            isResizingEditor
+              ? 'bg-primary shadow-[0_0_8px_var(--color-primary)]'
+              : 'bg-outline group-hover:bg-primary/70'
+          }`}
+        />
+        {isResizingEditor && (
+          <span className="absolute right-3 font-code-sm text-[9px] px-1.5 py-0.2 rounded bg-primary/20 text-primary font-mono animate-in fade-in">
+            {editorHeight}px
+          </span>
+        )}
       </div>
 
       {/* 4. Query Execution Results Panel */}
@@ -549,7 +689,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             </div>
           ) : (
             /* Dense Data Grid Component */
-            <div className="overflow-x-auto max-h-[380px] bg-surface-container-lowest">
+            <div className="overflow-auto max-h-[550px] min-h-[200px] bg-surface-container-lowest">
               <table className="w-full text-left font-code-sm text-xs border-collapse">
                 <thead className="sticky top-0 bg-surface-container-high/90 backdrop-blur z-10 border-b border-surface-container-highest">
                   <tr className="text-on-surface-variant font-label-md select-none text-[11px]">
@@ -569,8 +709,15 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                 <tbody className="divide-y divide-surface-container-high/30 text-on-surface">
                   {resultsData.rows.length === 0 ? (
                     <tr>
-                      <td colSpan={resultsData.columns.length + 1} className="p-4 text-center text-on-surface-variant">
-                        Tidak ada baris yang dikembalikan
+                      <td colSpan={resultsData.columns.length + 1} className="p-6 text-center text-on-surface-variant">
+                        {resultsData.message ? (
+                          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary font-medium text-xs">
+                            <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                            <span>{resultsData.message}</span>
+                          </div>
+                        ) : (
+                          <span>Tidak ada baris yang dikembalikan</span>
+                        )}
                       </td>
                     </tr>
                   ) : (
