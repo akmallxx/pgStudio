@@ -145,3 +145,40 @@ input[type="checkbox"]:indeterminate::before,
     padding-left: var(--viewport-pl-desktop) !important;
   }
 }
+
+/* SQL Syntax Highlighting Theme (Vibrant Dev Dark) */
+.sql-highlight .token.keyword { color: #38bdf8 !important; font-weight: 600; }
+.sql-highlight .token.function { color: #2dd4bf !important; }
+.sql-highlight .token.string { color: #4ade80 !important; }
+.sql-highlight .token.number { color: #fbbf24 !important; }
+.sql-highlight .token.comment { color: #64748b !important; font-style: italic; }
+.sql-highlight .token.operator { color: #f472b6 !important; font-weight: 500; }
+.sql-highlight .token.boolean { color: #c084fc !important; font-weight: 600; }
+.sql-highlight .token.punctuation { color: #94a3b8 !important; }
+.sql-highlight .token.variable { color: #e879f9 !important; }
+.sql-highlight .token.identifier { color: #e2e8f0 !important; }
+.sql-highlight .token.property { color: #a78bfa !important; }
+.sql-highlight .token.constant { color: #f97316 !important; }
+
+/* Synchronized Typography for SQL Code Overlay */
+.sql-code-area {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  font-size: 13px !important;
+  line-height: 1.62 !important;
+  tab-size: 2 !important;
+  letter-spacing: normal !important;
+}
+
+.sql-editor-textarea {
+  color: transparent !important;
+  caret-color: #38bdf8 !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.sql-editor-textarea::selection {
+  background-color: rgba(56, 189, 248, 0.3) !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+

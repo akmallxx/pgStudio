@@ -1,5 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-sql';
+import { format as formatSql } from 'sql-formatter';
 import {
   Terminal,
   Network,
@@ -33,6 +36,7 @@ import {
 import { INITIAL_SQL_TABS, EMPTY_QUERY_RESULT } from '../../data/mockDatabase';
 import { QueryResult, SqlTab, ClusterConnection } from '../../types/database';
 import { api, QueryHistoryItem } from '../../services/api';
+
 
 interface SqlEditorProps {
   onShowToast: (message: string, icon?: string, isError?: boolean) => void;
@@ -84,8 +88,16 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     } catch (_) {}
     return 220;
   });
-  const [isResizingEditor, setIsResizingEditor] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const preRef = useRef<HTMLPreElement>(null);
+
+  const handleEditorScroll = () => {
+    if (textareaRef.current && preRef.current) {
+      preRef.current.scrollTop = textareaRef.current.scrollTop;
+      preRef.current.scrollLeft = textareaRef.current.scrollLeft;
+    }
+  };
+
 
   // Mouse drag handler for vertical resizer
   const handleMouseDownResize = (e: React.MouseEvent) => {
@@ -157,6 +169,18 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   }, [resultsSubTab]);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+
+  const highlightedSql = useMemo(() => {
+    const code = activeTab?.sql || '';
+    if (!code) return '';
+    const codeToHighlight = code.endsWith('\n') ? code + ' ' : code;
+    try {
+      return Prism.highlight(codeToHighlight, Prism.languages.sql, 'sql');
+    } catch {
+      return codeToHighlight;
+    }
+  }, [activeTab?.sql]);
+
 
   const handleRunQuery = async () => {
     const textarea = textareaRef.current;
@@ -235,8 +259,22 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   };
 
   const handleFormatSql = () => {
-    onShowToast('SQL syntax formatted with Prettier rules', 'format_align_left');
+    if (!activeTab || !activeTab.sql.trim()) return;
+    try {
+      const formatted = formatSql(activeTab.sql, {
+        language: 'postgresql',
+        keywordCase: 'upper',
+        linesBetweenQueries: 2,
+      });
+      setTabs((prev) =>
+        prev.map((t) => (t.id === activeTabId ? { ...t, sql: formatted, isDirty: true } : t))
+      );
+      onShowToast('SQL berhasil diformat (PostgreSQL Prettier)', 'format_align_left');
+    } catch (err: any) {
+      onShowToast(`Format error: ${err?.message || 'Syntax error'}`, 'error', true);
+    }
   };
+
 
   const handleAddTab = () => {
     const newId = `tab-${Date.now()}`;
@@ -392,12 +430,13 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           {/* Format SQL Button */}
           <button
             onClick={handleFormatSql}
-            className="flex items-center gap-1 px-2 py-0.5 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface rounded text-xs transition-colors cursor-pointer"
-            title="Prettier SQL Formatting"
+            className="flex items-center gap-1.5 px-2.5 py-0.5 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant hover:text-primary rounded text-xs transition-colors cursor-pointer border border-outline-variant/30"
+            title="Format SQL PostgreSQL (Shift+Alt+F)"
           >
-            <AlignLeft className="w-3 h-3" />
-            <span>Format</span>
+            <AlignLeft className="w-3.5 h-3.5 text-primary" />
+            <span className="font-medium">Prettier</span>
           </button>
+
 
           {/* Save Snippet */}
           <button
@@ -466,31 +505,33 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         </div>
       </div>
 
-      {/* 3. Monaco-style Monospace Query Editor Container with Resizable Height */}
+      {/* 3. Query Editor Container with Resizable Height (Real Syntax Highlight & Clean Layout) */}
       <div 
         style={{ height: `${editorHeight}px` }}
-        className={`bg-surface-container-lowest relative font-code-md text-code-md overflow-hidden shadow-inner flex border-b border-surface-container-high ${
+        className={`bg-surface-container-lowest relative overflow-hidden shadow-inner border-b border-surface-container-high ${
           isResizingEditor ? 'duration-0 select-none' : 'transition-all duration-150'
         }`}
       >
-        {/* Line Numbers Column */}
-        <div className="w-10 py-1.5 bg-surface-container-lowest text-right pr-2 select-none text-on-surface-variant/40 flex flex-col font-code-sm text-[11px] leading-relaxed border-r border-surface-container-high/30 overflow-hidden">
-          {Array.from({ length: Math.max(15, Math.ceil(editorHeight / 20)) }, (_, i) => (
-            <span key={i + 1}>{i + 1}</span>
-          ))}
-        </div>
+        <div className="relative w-full h-full overflow-hidden bg-surface-container-lowest">
+          {/* Syntax Highlighted Underlay */}
+          <pre
+            ref={preRef}
+            aria-hidden="true"
+            className="sql-highlight sql-code-area absolute inset-0 m-0 p-3 overflow-hidden pointer-events-none whitespace-pre text-on-surface select-none border-0"
+            dangerouslySetInnerHTML={{ __html: highlightedSql }}
+          />
 
-        {/* Code Content */}
-        <div className="flex-1 py-1.5 pl-2.5 pr-3 overflow-auto leading-relaxed text-on-surface relative font-mono text-xs">
+          {/* Interactive Transparent Textarea Overlay */}
           <textarea
             ref={textareaRef}
-            value={activeTab.sql}
+            value={activeTab?.sql || ''}
             onChange={(e) => {
               const val = e.target.value;
               setTabs((prev) =>
                 prev.map((t) => (t.id === activeTabId ? { ...t, sql: val, isDirty: true } : t))
               );
             }}
+            onScroll={handleEditorScroll}
             onSelect={() => {
               const ta = textareaRef.current;
               if (ta) {
@@ -498,29 +539,46 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
               }
             }}
             onKeyDown={(e) => {
+              // Execute: Ctrl/Cmd + Enter
               if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                 e.preventDefault();
                 handleRunQuery();
+                return;
+              }
+              // Format Prettier: Shift + Alt + F or Ctrl + Shift + F
+              if ((e.shiftKey && e.altKey && (e.key === 'F' || e.key === 'f')) || 
+                  (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f'))) {
+                e.preventDefault();
+                handleFormatSql();
+                return;
+              }
+              // Indent: Tab key inserts 2 spaces
+              if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                e.preventDefault();
+                const ta = textareaRef.current;
+                if (!ta) return;
+                const start = ta.selectionStart;
+                const end = ta.selectionEnd;
+                const val = activeTab?.sql || '';
+                const nextVal = val.substring(0, start) + '  ' + val.substring(end);
+                setTabs((prev) =>
+                  prev.map((t) => (t.id === activeTabId ? { ...t, sql: nextVal, isDirty: true } : t))
+                );
+                requestAnimationFrame(() => {
+                  ta.selectionStart = ta.selectionEnd = start + 2;
+                });
               }
             }}
             spellCheck={false}
-            className="w-full h-full bg-transparent text-on-surface font-code-md text-xs leading-relaxed outline-none resize-none font-mono selection:bg-primary-container selection:text-on-primary-container"
+            autoCapitalize="off"
+            autoComplete="off"
+            autoCorrect="off"
+            placeholder="-- Tulis query SQL PostgreSQL di sini... Tekan Ctrl+Enter untuk menjalankan"
+            className="sql-code-area sql-editor-textarea absolute inset-0 w-full h-full m-0 p-3 bg-transparent placeholder:text-on-surface-variant/30 resize-none outline-none overflow-auto whitespace-pre z-10 border-0"
           />
         </div>
-
-        {/* Minimap Simulation */}
-        <div className="w-16 bg-surface-container-lowest/80 hidden lg:flex flex-col py-2 px-1 select-none pointer-events-none opacity-40 border-l border-surface-container-high/20">
-          <div className="w-full h-1 bg-secondary/50 rounded mb-0.5"></div>
-          <div className="w-2/3 h-1 bg-secondary/30 rounded mb-0.5 ml-2"></div>
-          <div className="w-4/5 h-1 bg-primary/40 rounded mb-0.5 ml-3"></div>
-          <div className="w-1/2 h-1 bg-on-surface-variant/30 rounded mb-0.5 ml-3"></div>
-          <div className="w-3/4 h-1 bg-primary/40 rounded mb-0.5 ml-3"></div>
-          <div className="w-full h-1 bg-secondary/30 rounded mb-0.5 ml-2"></div>
-          <div className="w-4/5 h-1 bg-secondary/30 rounded mb-0.5 ml-2"></div>
-          <div className="w-3/4 h-1 bg-secondary/30 rounded mb-0.5 ml-2"></div>
-          <div className="w-1/2 h-1 bg-secondary/50 rounded mb-0.5"></div>
-        </div>
       </div>
+
 
       {/* Interactive Resizer Bar (Tarik untuk ubah tinggi seperti sidebar) */}
       <div
