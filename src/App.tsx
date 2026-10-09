@@ -902,7 +902,7 @@ export default function App() {
             : isNavExpanded
             ? 'pl-52 viewport-explorer-desktop'
             : 'pl-11 viewport-explorer-desktop'
-        }`}
+        } ${currentView === 'sql-editor' ? 'h-screen overflow-hidden' : ''}`}
         style={
           !(currentView === 'database-connections' || effectiveExplorerCollapsed)
             ? ({
@@ -911,7 +911,13 @@ export default function App() {
             : undefined
         }
       >
-        <main className="relative pt-14 pb-8 min-h-[calc(100vh-1.5rem)] bg-surface w-full px-2 sm:px-3 lg:px-4 max-w-full overflow-x-hidden">
+        <main
+          className={`relative pt-14 bg-surface w-full max-w-full ${
+            currentView === 'sql-editor'
+              ? 'h-screen pb-1 px-2 sm:px-3 flex flex-col overflow-hidden'
+              : 'pb-8 min-h-[calc(100vh-1.5rem)] px-2 sm:px-3 lg:px-4 overflow-x-hidden'
+          }`}
+        >
           <Routes>
             {/* 1. Dashboard Pilih Koneksi (Workspace Fleet) */}
             <Route

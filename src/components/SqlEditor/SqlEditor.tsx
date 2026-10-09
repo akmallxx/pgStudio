@@ -467,12 +467,12 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   };
 
   return (
-    <div className="flex w-full min-h-0 relative items-start">
+    <div className="flex w-full h-full min-h-0 relative overflow-hidden">
       {/* Main SQL Editor Workspace */}
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
 
         {/* 1. Query Tabs & Top Bar */}
-        <div className="flex items-center justify-between bg-surface-container-lowest px-1 pt-1 rounded-t-lg border-b border-surface-container-high/60">
+        <div className="flex items-center justify-between bg-surface-container-lowest px-1 pt-1 rounded-t-lg border-b border-surface-container-high/60 shrink-0">
           {/* Tabs List */}
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
             {tabs.map((tab) => {
@@ -535,7 +535,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
         </div>
 
         {/* 2. Quick Snippets & Action Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-1.5 bg-surface-container px-2.5 py-1 border-b border-surface-container-high/60">
+        <div className="flex flex-wrap items-center justify-between gap-1.5 bg-surface-container px-2.5 py-1 border-b border-surface-container-high/60 shrink-0">
           {/* Execution Toolbar */}
           <div className="flex items-center gap-1.5 flex-wrap">
             {/* Target Active Database Pill */}
@@ -628,10 +628,13 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
 
         {/* 3. Query Editor Container with Resizable Height (Real Syntax Highlight & Clean Layout) */}
         <div
-          style={{ height: `${editorHeight}px` }}
+          style={isSubtabCollapsed ? undefined : { height: `${editorHeight}px` }}
           onClick={() => textareaRef.current?.focus()}
-          className={`bg-surface-container-lowest relative overflow-hidden shadow-inner border-b border-surface-container-high cursor-text ${isResizingEditor ? 'duration-0 select-none' : 'transition-all duration-150'
-            }`}
+          className={`bg-surface-container-lowest relative overflow-hidden shadow-inner border-b border-surface-container-high cursor-text ${
+            isSubtabCollapsed ? 'flex-1 min-h-0' : 'shrink-0'
+          } ${
+            isResizingEditor ? 'duration-0 select-none' : 'transition-all duration-150'
+          }`}
         >
           <div className="relative w-full h-full overflow-hidden bg-surface-container-lowest">
             {/* Syntax Highlighted Underlay */}
@@ -713,34 +716,47 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
 
 
         {/* Interactive Resizer Bar (Tarik untuk ubah tinggi seperti sidebar) */}
-        <div
-          onMouseDown={handleMouseDownResize}
-          onDoubleClick={handleResetEditorHeight}
-          className={`relative h-2 w-full cursor-row-resize z-20 select-none group transition-colors duration-150 flex items-center justify-center ${isResizingEditor ? 'bg-primary/25' : 'bg-surface-container-high/60 hover:bg-primary/20'
-            }`}
-          title="Tarik untuk mengubah tinggi editor / hasil query (Klik 2x untuk reset ke 220px)"
-        >
+        {!isSubtabCollapsed && (
           <div
-            className={`h-0.5 w-14 rounded transition-colors duration-150 ${isResizingEditor
-                ? 'bg-primary shadow-[0_0_8px_var(--color-primary)]'
-                : 'bg-outline group-hover:bg-primary/70'
+            onMouseDown={handleMouseDownResize}
+            onDoubleClick={handleResetEditorHeight}
+            className={`relative h-2 w-full cursor-row-resize z-20 select-none group transition-colors duration-150 flex items-center justify-center shrink-0 ${isResizingEditor ? 'bg-primary/25' : 'bg-surface-container-high/60 hover:bg-primary/20'
               }`}
-          />
-          {isResizingEditor && (
-            <span className="absolute right-3 font-code-sm text-[9px] px-1.5 py-0.2 rounded bg-primary/20 text-primary font-mono animate-in fade-in">
-              {editorHeight}px
-            </span>
-          )}
-        </div>
+            title="Tarik untuk mengubah tinggi editor / hasil query (Klik 2x untuk reset ke 220px)"
+          >
+            <div
+              className={`h-0.5 w-14 rounded transition-colors duration-150 ${isResizingEditor
+                  ? 'bg-primary shadow-[0_0_8px_var(--color-primary)]'
+                  : 'bg-outline group-hover:bg-primary/70'
+                }`}
+            />
+            {isResizingEditor && (
+              <span className="absolute right-3 font-code-sm text-[9px] px-1.5 py-0.2 rounded bg-primary/20 text-primary font-mono animate-in fade-in">
+                {editorHeight}px
+              </span>
+            )}
+          </div>
+        )}
 
         {/* 4. Query Execution Results Panel */}
-        <div className="flex flex-col bg-surface-container-low rounded-b-lg shadow-xl overflow-hidden mt-1 border border-surface-container-high">
+        <div
+          className={`flex flex-col bg-surface-container-low rounded-b-lg shadow-xl overflow-hidden mt-1 border border-surface-container-high ${
+            isSubtabCollapsed ? 'shrink-0' : 'flex-1 min-h-0'
+          }`}
+        >
           {/* Output Panel Header Tabs & Metrics Meta Pill */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container px-3 py-1.5 border-b border-surface-container-high/60">
+          <div
+            onDoubleClick={() => handleSetSubtabCollapsed(!isSubtabCollapsed)}
+            className="flex flex-wrap items-center justify-between gap-3 bg-surface-container px-3 py-1.5 border-b border-surface-container-high/60 shrink-0 select-none cursor-pointer"
+            title="Klik 2x untuk buka / tutup panel hasil query"
+          >
             {/* Sub-Tabs */}
             <div className="flex items-center gap-1">
               <button
-                onClick={() => setResultsSubTab('results')}
+                onClick={() => {
+                  setResultsSubTab('results');
+                  if (isSubtabCollapsed) handleSetSubtabCollapsed(false);
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1 font-label-md text-label-md rounded font-semibold transition-colors cursor-pointer ${resultsSubTab === 'results'
                     ? 'bg-surface-container-high text-primary shadow-sm'
                     : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
@@ -750,7 +766,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                 <span>Results ({resultsData.rowCount} rows)</span>
               </button>
               <button
-                onClick={() => setResultsSubTab('explain')}
+                onClick={() => {
+                  setResultsSubTab('explain');
+                  if (isSubtabCollapsed) handleSetSubtabCollapsed(false);
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1 font-label-md text-label-md rounded transition-colors cursor-pointer ${resultsSubTab === 'explain'
                     ? 'bg-surface-container-high text-primary font-semibold shadow-sm'
                     : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
@@ -760,7 +779,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                 <span>Explain Visualizer</span>
               </button>
               <button
-                onClick={() => setResultsSubTab('logs')}
+                onClick={() => {
+                  setResultsSubTab('logs');
+                  if (isSubtabCollapsed) handleSetSubtabCollapsed(false);
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1 font-label-md text-label-md rounded transition-colors cursor-pointer ${resultsSubTab === 'logs'
                     ? 'bg-surface-container-high text-primary font-semibold shadow-sm'
                     : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
@@ -773,7 +795,10 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                 </span>
               </button>
               <button
-                onClick={() => setResultsSubTab('history')}
+                onClick={() => {
+                  setResultsSubTab('history');
+                  if (isSubtabCollapsed) handleSetSubtabCollapsed(false);
+                }}
                 className={`flex items-center gap-1.5 px-3 py-1 font-label-md text-label-md rounded transition-colors cursor-pointer ${resultsSubTab === 'history'
                     ? 'bg-surface-container-high text-primary font-semibold shadow-sm'
                     : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
@@ -846,7 +871,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                   className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors cursor-pointer ${
                     !isSubtabCollapsed
                       ? 'bg-primary text-on-primary font-bold shadow-xs'
-                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                      : 'text-primary hover:bg-primary/10'
                   }`}
                   title="Tampilkan Hasil Query Subtab (Up / Show)"
                 >
@@ -877,7 +902,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
 
             showChart ? (
               /* Bar Chart Visualizer */
-              <div className="p-4 bg-surface-container-lowest space-y-4">
+              <div className="p-4 bg-surface-container-lowest space-y-4 flex-1 min-h-0 overflow-auto">
                 <div className="flex items-center justify-between text-xs text-on-surface-variant">
                   <span>Revenue Breakdown by Country</span>
                   <span className="text-secondary font-mono">Gross Revenue (USD)</span>
@@ -907,7 +932,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
               </div>
             ) : (
               /* Dense Data Grid Component */
-              <div className="overflow-auto max-h-[550px] min-h-[200px] bg-surface-container-lowest">
+              <div className="flex-1 min-h-0 overflow-auto bg-surface-container-lowest">
                 <table className="w-full text-left font-code-sm text-xs border-collapse">
                   <thead className="sticky top-0 bg-surface-container-high/90 backdrop-blur z-10 border-b border-surface-container-highest">
                     <tr className="text-on-surface-variant font-label-md select-none text-[11px]">
@@ -974,7 +999,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             )
           ) : resultsSubTab === 'explain' ? (
             /* Explain Visualizer Tree */
-            <div className="p-4 bg-surface-container-lowest space-y-3 font-mono text-xs">
+            <div className="p-4 bg-surface-container-lowest space-y-3 font-mono text-xs flex-1 min-h-0 overflow-auto">
               <div className="p-3 rounded bg-surface-container space-y-1.5 border border-surface-container-high">
                 <div className="flex items-center justify-between pb-2 border-b border-surface-container-high font-bold text-secondary">
                   <span className="flex items-center gap-1.5">
@@ -1000,7 +1025,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             </div>
           ) : resultsSubTab === 'logs' ? (
             /* Logs Panel */
-            <div className="p-4 bg-surface-container-lowest font-mono text-xs text-on-surface space-y-2">
+            <div className="p-4 bg-surface-container-lowest font-mono text-xs text-on-surface space-y-2 flex-1 min-h-0 overflow-auto">
               {queryError ? (
                 <div className="p-3 rounded bg-error/10 border border-error/30 text-error space-y-1">
                   <div className="font-bold flex items-center gap-1.5">
@@ -1016,7 +1041,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             </div>
           ) : (
             /* Real Query History Panel */
-            <div className="p-4 bg-surface-container-lowest font-mono text-xs space-y-2 max-h-[340px] overflow-y-auto">
+            <div className="p-4 bg-surface-container-lowest font-mono text-xs space-y-2 flex-1 min-h-0 overflow-auto">
               <div className="flex items-center justify-between pb-2 border-b border-surface-container-high font-sans">
                 <div className="flex items-center gap-2">
                   <History className="w-4 h-4 text-primary" />
@@ -1111,7 +1136,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           )}
 
           {/* Footer Coordinate & Pagination */}
-          <div className="flex items-center justify-between px-3 py-1.5 bg-surface-container-high text-on-surface-variant font-code-sm text-code-sm text-xs border-t border-surface-container-highest">
+          <div className="flex items-center justify-between px-3 py-1.5 bg-surface-container-high text-on-surface-variant font-code-sm text-code-sm text-xs border-t border-surface-container-highest shrink-0">
             <div className="flex items-center gap-3">
               <span>Displaying rows 1-50 of 50</span>
               <div className="h-3 w-px bg-outline-variant/30"></div>
