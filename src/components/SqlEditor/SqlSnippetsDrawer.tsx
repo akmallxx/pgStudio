@@ -193,7 +193,7 @@ export const SqlSnippetsDrawer: React.FC<SqlSnippetsDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <aside className="w-80 sm:w-84 border-l border-surface-container-high bg-surface-container-low flex flex-col shrink-0 overflow-hidden font-sans select-none animate-in slide-in-from-right-2 duration-150 shadow-md">
+    <aside className="sticky top-14 h-[calc(100vh-4.5rem)] w-80 sm:w-84 border-l border-surface-container-high bg-surface-container-low flex flex-col shrink-0 overflow-hidden font-sans select-none animate-in slide-in-from-right-2 duration-150 shadow-lg z-30">
       {/* 1. Drawer Header (Mirip TerminalView) */}
       <div className="flex items-center justify-between p-2.5 sm:p-3 border-b border-surface-container-high bg-surface-container-low/90 shrink-0">
         <div className="flex items-center gap-2">

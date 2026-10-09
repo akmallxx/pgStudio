@@ -448,7 +448,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   };
 
   return (
-    <div className="flex w-full min-h-0 relative items-stretch">
+    <div className="flex w-full min-h-0 relative items-start">
       {/* Main SQL Editor Workspace */}
       <div className="flex-1 min-w-0 flex flex-col">
 
