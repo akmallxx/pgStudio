@@ -36,6 +36,7 @@ import {
 import { INITIAL_SQL_TABS, EMPTY_QUERY_RESULT } from '../../data/mockDatabase';
 import { QueryResult, SqlTab, ClusterConnection } from '../../types/database';
 import { api, QueryHistoryItem } from '../../services/api';
+import { SqlSnippetModal } from './SqlSnippetModal';
 
 
 interface SqlEditorProps {
@@ -79,6 +80,8 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
   const [queryError, setQueryError] = useState<string | null>(null);
   const [explainPlan, setExplainPlan] = useState<string[]>([]);
   const [hasSelectionToRun, setHasSelectionToRun] = useState<boolean>(false);
+  const [isSnippetModalOpen, setIsSnippetModalOpen] = useState(false);
+
 
   // Resizable Editor Panel Height (Saved in localStorage, like Sidebar Database Explorer)
   const [editorHeight, setEditorHeight] = useState<number>(() => {
@@ -283,6 +286,17 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       onShowToast(`Format error: ${err?.message || 'Syntax error'}`, 'error', true);
     }
   };
+
+  const handleApplySnippet = (snippetSql: string) => {
+    setTabs((prev) =>
+      prev.map((t) => (t.id === activeTabId ? { ...t, sql: snippetSql, isDirty: true } : t))
+    );
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 50);
+    onShowToast('Snippet dimuat ke editor', 'check_circle');
+  };
+
 
   const handleRunQueryRef = useRef(handleRunQuery);
   handleRunQueryRef.current = handleRunQuery;
@@ -495,14 +509,16 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             <span className="font-medium">Prettier</span>
           </button>
 
-          {/* Save Snippet */}
+          {/* SQL Snippets Library */}
           <button
-            onClick={() => onShowToast('Query saved to Snippet Library', 'bookmark')}
-            className="flex items-center gap-1 px-2 py-0.5 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface rounded text-xs transition-colors cursor-pointer"
+            onClick={() => setIsSnippetModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-0.5 bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant hover:text-primary rounded text-xs transition-colors cursor-pointer border border-outline-variant/30"
+            title="Buka SQL Snippets Library & Template Dasar"
           >
-            <Bookmark className="w-3 h-3" />
-            <span>Snippet</span>
+            <Bookmark className="w-3.5 h-3.5 text-secondary" />
+            <span className="font-medium">Snippets</span>
           </button>
+
 
           {/* Auto Rollback Pill Switch */}
           <button
@@ -1050,6 +1066,16 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
           </div>
         </div>
       </div>
+
+      {/* SQL Snippets Library Modal */}
+      <SqlSnippetModal
+        isOpen={isSnippetModalOpen}
+        onClose={() => setIsSnippetModalOpen(false)}
+        currentEditorSql={activeTab?.sql || ''}
+        onApplySnippet={handleApplySnippet}
+        onShowToast={onShowToast}
+      />
     </div>
   );
 };
+
