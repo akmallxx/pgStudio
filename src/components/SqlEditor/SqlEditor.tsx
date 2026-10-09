@@ -835,11 +835,46 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                 <BarChart2 className="w-3 h-3" />
                 <span>Chart</span>
               </button>
+
+              {/* Separator */}
+              <div className="h-3.5 w-px bg-outline-variant/30 mx-1" />
+
+              {/* Subtab Toggle Buttons: Up (Show) & Down (Hide) */}
+              <div className="flex items-center rounded-md bg-surface-container-lowest border border-outline-variant/30 p-0.5 shadow-xs">
+                <button
+                  onClick={() => handleSetSubtabCollapsed(false)}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors cursor-pointer ${
+                    !isSubtabCollapsed
+                      ? 'bg-primary text-on-primary font-bold shadow-xs'
+                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                  }`}
+                  title="Tampilkan Hasil Query Subtab (Up / Show)"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                  <span>Up</span>
+                </button>
+                <button
+                  onClick={() => handleSetSubtabCollapsed(true)}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors cursor-pointer ${
+                    isSubtabCollapsed
+                      ? 'bg-primary text-on-primary font-bold shadow-xs'
+                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                  }`}
+                  title="Sembunyikan Hasil Query Subtab (Down / Hide)"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                  <span>Down</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Results Body */}
-          {resultsSubTab === 'results' ? (
+          {/* Results Body & Footer (Hidden when subtab is collapsed) */}
+          {!isSubtabCollapsed && (
+            <>
+              {/* Results Body */}
+              {resultsSubTab === 'results' ? (
+
             showChart ? (
               /* Bar Chart Visualizer */
               <div className="p-4 bg-surface-container-lowest space-y-4">
@@ -1103,8 +1138,11 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
               </button>
             </div>
           </div>
+            </>
+          )}
         </div>
       </div>
+
 
       {/* Snippets Right Drawer (Persis TerminalView) */}
       <SqlSnippetsDrawer
