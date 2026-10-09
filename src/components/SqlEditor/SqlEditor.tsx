@@ -184,12 +184,20 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
 
 
   const handleRunQuery = async () => {
+    if (isExecuting) return;
+
     const textarea = textareaRef.current;
-    let sqlToExecute = activeTab.sql;
+    const currentSql = textarea ? textarea.value : (activeTab?.sql || '');
+    let sqlToExecute = currentSql;
     let hasSelection = false;
 
-    if (textarea && textarea.selectionStart !== textarea.selectionEnd) {
-      const selected = activeTab.sql.substring(textarea.selectionStart, textarea.selectionEnd).trim();
+    if (
+      textarea &&
+      typeof textarea.selectionStart === 'number' &&
+      typeof textarea.selectionEnd === 'number' &&
+      textarea.selectionStart !== textarea.selectionEnd
+    ) {
+      const selected = currentSql.substring(textarea.selectionStart, textarea.selectionEnd).trim();
       if (selected) {
         sqlToExecute = selected;
         hasSelection = true;
@@ -275,6 +283,55 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       onShowToast(`Format error: ${err?.message || 'Syntax error'}`, 'error', true);
     }
   };
+
+  const handleRunQueryRef = useRef(handleRunQuery);
+  handleRunQueryRef.current = handleRunQuery;
+
+  const handleFormatSqlRef = useRef(handleFormatSql);
+  handleFormatSqlRef.current = handleFormatSql;
+
+  // Global window shortcut listener for Ctrl+Enter / Cmd+Enter & Prettier format
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isEnterKey =
+        e.key === 'Enter' ||
+        e.code === 'Enter' ||
+        e.code === 'NumpadEnter' ||
+        e.keyCode === 13 ||
+        e.which === 13;
+
+      if ((e.ctrlKey || e.metaKey) && isEnterKey) {
+        const target = e.target as HTMLElement | null;
+        if (target && target.tagName === 'INPUT') {
+          return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+        handleRunQueryRef.current();
+        return;
+      }
+
+      const isFKey = e.key === 'F' || e.key === 'f' || e.code === 'KeyF';
+      if (((e.shiftKey && e.altKey) || (e.ctrlKey && e.shiftKey) || (e.metaKey && e.shiftKey)) && isFKey) {
+        const target = e.target as HTMLElement | null;
+        if (target && target.tagName === 'INPUT') {
+          return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+        handleFormatSqlRef.current();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown, true);
+    };
+  }, []);
+
 
 
   const handleAddTab = () => {
@@ -407,13 +464,13 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                 {isExecuting ? 'Executing...' : hasSelectionToRun ? 'Run Selection' : 'Run Query'}
               </span>
               <kbd className="ml-1 px-1 py-0.2 bg-on-primary/20 text-on-primary rounded text-[9px] font-mono">
-                ⌘⏎
+                Ctrl+↵
               </kbd>
             </button>
             <button
               onClick={handleRunQuery}
               className="px-1 py-0.5 bg-primary text-on-primary hover:bg-primary-fixed rounded-r transition-colors border-l border-on-primary/20 cursor-pointer"
-              title="Jalankan Query (⌘+Enter / Ctrl+Enter)"
+              title="Jalankan Query (Ctrl+Enter)"
             >
               <ChevronDown className="w-3 h-3" />
             </button>
@@ -437,7 +494,6 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
             <AlignLeft className="w-3.5 h-3.5 text-primary" />
             <span className="font-medium">Prettier</span>
           </button>
-
 
           {/* Save Snippet */}
           <button
@@ -509,7 +565,8 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
       {/* 3. Query Editor Container with Resizable Height (Real Syntax Highlight & Clean Layout) */}
       <div 
         style={{ height: `${editorHeight}px` }}
-        className={`bg-surface-container-lowest relative overflow-hidden shadow-inner border-b border-surface-container-high ${
+        onClick={() => textareaRef.current?.focus()}
+        className={`bg-surface-container-lowest relative overflow-hidden shadow-inner border-b border-surface-container-high cursor-text ${
           isResizingEditor ? 'duration-0 select-none' : 'transition-all duration-150'
         }`}
       >
@@ -540,19 +597,30 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
               }
             }}
             onKeyDown={(e) => {
+              const isEnterKey =
+                e.key === 'Enter' ||
+                e.code === 'Enter' ||
+                e.code === 'NumpadEnter' ||
+                e.keyCode === 13 ||
+                e.which === 13;
+
               // Execute: Ctrl/Cmd + Enter
-              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              if ((e.metaKey || e.ctrlKey) && isEnterKey) {
                 e.preventDefault();
+                e.stopPropagation();
                 handleRunQuery();
                 return;
               }
+
               // Format Prettier: Shift + Alt + F or Ctrl + Shift + F
-              if ((e.shiftKey && e.altKey && (e.key === 'F' || e.key === 'f')) || 
-                  (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f'))) {
+              const isFKey = e.key === 'F' || e.key === 'f' || e.code === 'KeyF';
+              if (((e.shiftKey && e.altKey) || (e.ctrlKey && e.shiftKey) || (e.metaKey && e.shiftKey)) && isFKey) {
                 e.preventDefault();
+                e.stopPropagation();
                 handleFormatSql();
                 return;
               }
+
               // Indent: Tab key inserts 2 spaces
               if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
                 e.preventDefault();
@@ -560,7 +628,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
                 if (!ta) return;
                 const start = ta.selectionStart;
                 const end = ta.selectionEnd;
-                const val = activeTab?.sql || '';
+                const val = ta.value;
                 const nextVal = val.substring(0, start) + '  ' + val.substring(end);
                 setTabs((prev) =>
                   prev.map((t) => (t.id === activeTabId ? { ...t, sql: nextVal, isDirty: true } : t))
