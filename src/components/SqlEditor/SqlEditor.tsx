@@ -88,6 +88,7 @@ export const SqlEditor: React.FC<SqlEditorProps> = ({
     } catch (_) {}
     return 220;
   });
+  const [isResizingEditor, setIsResizingEditor] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
 

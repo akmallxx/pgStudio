@@ -62,6 +62,7 @@ export interface QueryResult {
   transferKb: number;
   columns: { name: string; type: string }[];
   rows: any[];
+  message?: string;
 }
 
 export interface ErdNode {
